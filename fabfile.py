@@ -90,7 +90,7 @@ else:
 templates = {
     "nginx": {
         "local_path": "deploy/nginx.conf.template",
-        "remote_path": "/etc/nginx/sites-enabled/%(proj_name)s.conf",
+        "remote_path": "/usr/local/nginx/conf/nginx.conf",
         "reload_command": "service nginx restart",
     },
     "supervisor": {
@@ -440,8 +440,29 @@ def install():
     """
     # Install system requirements
     sudo("apt-get update -y -q")
-    apt("nginx libjpeg-dev python-dev python-setuptools git-core "
+    sudo("apt-get upgrade -y")
+    apt("libjpeg-dev python-dev python-setuptools git-core "
         "postgresql libpq-dev memcached supervisor python-pip")
+
+    # nginx rtmp
+    apt("git gcc make libpcre3-dev libssl-dev")
+    apt("build-essential libpcre3 libpcre3-dev libssl-dev")
+    run("wget https://nginx.org/download/nginx-1.13.6.tar.gz -O nginx.tar.gz")
+    run("tar xzf nginx.tar.gz")
+    run("mv nginx-* nginx")
+    with cd("nginx"):
+        run("git clone https://github.com/arut/nginx-rtmp-module.git")
+        run("./configure --with-http_ssl_module --add-module=nginx-rtmp-module")
+        run("make")
+        sudo("make install")
+    sudo("rm -r nginx")
+    sudo("wget https://raw.github.com/JasonGiedymin/nginx-init-ubuntu/master/nginx -O /etc/init.d/nginx")
+    sudo("chmod +x /etc/init.d/nginx")
+    sudo("update-rc.d nginx defaults")
+    sudo("mkdir -p /srv/nginx/stream/hls")
+    sudo("mkdir -p /srv/nginx/keys")
+    sudo("service nginx start")
+
     run("mkdir -p /home/%s/logs" % env.user)
 
     # Install Python requirements
@@ -506,24 +527,7 @@ def create():
          (env.proj_name, env.proj_name, env.locale, env.locale))
 
     # Set up SSL certificate
-    if not env.ssl_disabled:
-        conf_path = "/etc/nginx/conf"
-        if not exists(conf_path):
-            sudo("mkdir %s" % conf_path)
-        with cd(conf_path):
-            crt_file = env.proj_name + ".crt"
-            key_file = env.proj_name + ".key"
-            if not exists(crt_file) and not exists(key_file):
-                try:
-                    crt_local, = glob(join("deploy", "*.crt"))
-                    key_local, = glob(join("deploy", "*.key"))
-                except ValueError:
-                    parts = (crt_file, key_file, env.domains[0])
-                    sudo("openssl req -new -x509 -nodes -out %s -keyout %s "
-                         "-subj '/CN=%s' -days 3650" % parts)
-                else:
-                    upload_template(crt_local, crt_file, use_sudo=True)
-                    upload_template(key_local, key_file, use_sudo=True)
+    ssl()
 
     # Install project-specific requirements
     upload_template_and_reload("settings")
@@ -554,6 +558,29 @@ def create():
             print_command(user_py.replace("'%s'" % pw, "'%s'" % shadowed))
 
     return True
+
+@task
+@log_call
+def ssl():
+    # Set up SSL certificate
+    if not env.ssl_disabled:
+        conf_path = "/usr/local/nginx/conf"
+        if not exists(conf_path):
+            sudo("mkdir %s" % conf_path)
+        with cd(conf_path):
+            crt_file = env.proj_name + ".crt"
+            key_file = env.proj_name + ".key"
+            if not exists(crt_file) and not exists(key_file):
+                try:
+                    crt_local, = glob(join("deploy", "*.crt"))
+                    key_local, = glob(join("deploy", "*.key"))
+                except ValueError:
+                    parts = (crt_file, key_file, env.domains[0])
+                    sudo("openssl req -new -x509 -nodes -out %s -keyout %s "
+                         "-subj '/CN=%s' -days 3650" % parts)
+                else:
+                    upload_template(crt_local, crt_file, use_sudo=True)
+                    upload_template(key_local, key_file, use_sudo=True)
 
 
 @task

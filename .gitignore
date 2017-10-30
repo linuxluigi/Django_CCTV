@@ -52,6 +52,9 @@ fabric.properties
 /env
 /venv
 
+# Docs
+/docs/_build
+
 # Project
 local_settings.py
 /static

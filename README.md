@@ -8,9 +8,10 @@ http://mezzanine.jupo.org/docs/deployment.html?highlight=deploy
 **do not install as root user**
 
 ```bash
-$ pip install Fabric3
+$ pip install fabric
 $ fab secure
-$ fab all
+$ fab install
+$ fab deploy
 ```
 
 # Extra
@@ -21,6 +22,21 @@ $ fab all
 $ sudo openssl req -new -x509 -days 365 -nodes -out /usr/local/nginx/conf/cctv.crt -keyout /usr/local/nginx/conf/cctv.key
 $ sudo chmod 600 /usr/local/nginx/conf/cctv.crt
 $ sudo chmod 600 /usr/local/nginx/conf/cctv.key
+```
+
+## SSH
+
+```bash
+$ ssh-keygen -R stream.linuxluigi.com
+```
+
+```bash
+ssh root@stream.linuxluigi.com
+adduser fubu
+adduser fubu sudo
+sed -i 's/%sudo	ALL=(ALL:ALL) ALL/%sudo ALL=NOPASSWD: ALL/g' /etc/sudoers
+cp -r /root/.ssh /home/fubu/.ssh
+chown -R fubu:fubu /home/fubu/.ssh
 ```
 
 ## Install & use LetsEncrypt
@@ -57,9 +73,3 @@ curl --insecure -i -X OPTIONS -H "Origin: http://207.154.249.112:443" \
     -H 'Access-Control-Request-Method: POST' \
     -H 'Access-Control-Request-Headers: Content-Type, Authorization' \
     "https://207.154.249.112/stream/hls/start.m3u8"
-
-## start manually ngninx
-
-```bash
-$ sudo /etc/init.d/nginx restart
-```
