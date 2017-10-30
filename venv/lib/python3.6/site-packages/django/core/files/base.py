@@ -6,7 +6,7 @@ from io import BytesIO, StringIO, UnsupportedOperation
 from django.core.files.utils import FileProxyMixin
 from django.utils import six
 from django.utils.encoding import (
-    force_bytes, force_str, python_2_unicode_compatible, smart_text,
+    force_bytes, force_str, force_text, python_2_unicode_compatible,
 )
 
 
@@ -23,7 +23,7 @@ class File(FileProxyMixin):
             self.mode = file.mode
 
     def __str__(self):
-        return smart_text(self.name or '')
+        return force_text(self.name or '')
 
     def __repr__(self):
         return force_str("<%s: %s>" % (self.__class__.__name__, self or "None"))
@@ -63,10 +63,6 @@ class File(FileProxyMixin):
         self._size = size
 
     size = property(_get_size, _set_size)
-
-    def _get_closed(self):
-        return not self.file or self.file.closed
-    closed = property(_get_closed)
 
     def chunks(self, chunk_size=None):
         """

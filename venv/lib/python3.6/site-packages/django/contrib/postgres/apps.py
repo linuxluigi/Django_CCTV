@@ -1,10 +1,11 @@
 from django.apps import AppConfig
+from django.db import connections
 from django.db.backends.signals import connection_created
 from django.db.models import CharField, TextField
 from django.utils.translation import ugettext_lazy as _
 
 from .lookups import SearchLookup, TrigramSimilar, Unaccent
-from .signals import register_hstore_handler
+from .signals import register_type_handlers
 
 
 class PostgresConfig(AppConfig):
@@ -12,7 +13,11 @@ class PostgresConfig(AppConfig):
     verbose_name = _('PostgreSQL extensions')
 
     def ready(self):
-        connection_created.connect(register_hstore_handler)
+        # Connections may already exist before we are called.
+        for conn in connections.all():
+            if conn.connection is not None:
+                register_type_handlers(conn)
+        connection_created.connect(register_type_handlers)
         CharField.register_lookup(Unaccent)
         TextField.register_lookup(Unaccent)
         CharField.register_lookup(SearchLookup)

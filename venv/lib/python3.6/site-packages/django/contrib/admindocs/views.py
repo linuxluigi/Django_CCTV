@@ -1,6 +1,5 @@
 import inspect
 import os
-import re
 from importlib import import_module
 
 from django.apps import apps
@@ -8,6 +7,9 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.admindocs import utils
+from django.contrib.admindocs.utils import (
+    replace_named_groups, replace_unnamed_groups,
+)
 from django.core.exceptions import ImproperlyConfigured, ViewDoesNotExist
 from django.db import models
 from django.http import Http404
@@ -300,7 +302,6 @@ class ModelDetailView(BaseAdminDocsView):
                     })
                 else:
                     arguments = get_func_full_args(func)
-                    print_arguments = arguments
                     # Join arguments with ', ' and in case of default value,
                     # join it with '='. Use repr() so that strings will be
                     # correctly displayed.
@@ -356,10 +357,15 @@ class TemplateDetailView(BaseAdminDocsView):
             # This doesn't account for template loaders (#24128).
             for index, directory in enumerate(default_engine.dirs):
                 template_file = os.path.join(directory, template)
+                if os.path.exists(template_file):
+                    with open(template_file) as f:
+                        template_contents = f.read()
+                else:
+                    template_contents = ''
                 templates.append({
                     'file': template_file,
                     'exists': os.path.exists(template_file),
-                    'contents': lambda: open(template_file).read() if os.path.exists(template_file) else '',
+                    'contents': template_contents,
                     'order': index,
                 })
         kwargs.update({
@@ -420,24 +426,17 @@ def extract_views_from_urlpatterns(urlpatterns, base='', namespace=None):
             raise TypeError(_("%s does not appear to be a urlpattern object") % p)
     return views
 
-named_group_matcher = re.compile(r'\(\?P(<\w+>).+?\)')
-non_named_group_matcher = re.compile(r'\(.*?\)')
-
 
 def simplify_regex(pattern):
+    r"""
+    Clean up urlpattern regexes into something more readable by humans. For
+    example, turn "^(?P<sport_slug>\w+)/athletes/(?P<athlete_slug>\w+)/$"
+    into "/<sport_slug>/athletes/<athlete_slug>/".
     """
-    Clean up urlpattern regexes into something somewhat readable by Mere Humans:
-    turns something like "^(?P<sport_slug>\w+)/athletes/(?P<athlete_slug>\w+)/$"
-    into "<sport_slug>/athletes/<athlete_slug>/"
-    """
-    # handle named groups first
-    pattern = named_group_matcher.sub(lambda m: m.group(1), pattern)
-
-    # handle non-named groups
-    pattern = non_named_group_matcher.sub("<var>", pattern)
-
+    pattern = replace_named_groups(pattern)
+    pattern = replace_unnamed_groups(pattern)
     # clean up any outstanding regex-y characters.
-    pattern = pattern.replace('^', '').replace('$', '').replace('?', '').replace('//', '/').replace('\\', '')
+    pattern = pattern.replace('^', '').replace('$', '').replace('?', '')
     if not pattern.startswith('/'):
         pattern = '/' + pattern
     return pattern

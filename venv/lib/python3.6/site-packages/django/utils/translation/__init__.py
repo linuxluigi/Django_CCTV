@@ -4,9 +4,11 @@ Internationalization support.
 from __future__ import unicode_literals
 
 import re
+import warnings
 
 from django.utils import six
 from django.utils.decorators import ContextDecorator
+from django.utils.deprecation import RemovedInDjango21Warning
 from django.utils.encoding import force_text
 from django.utils.functional import lazy
 
@@ -61,6 +63,7 @@ class Trans(object):
         setattr(self, real_name, getattr(trans, real_name))
         return getattr(trans, real_name)
 
+
 _trans = Trans()
 
 # The Trans class is no more needed, so remove it from the namespace.
@@ -69,6 +72,7 @@ del Trans
 
 def gettext_noop(message):
     return _trans.gettext_noop(message)
+
 
 ugettext_noop = gettext_noop
 
@@ -95,6 +99,7 @@ def pgettext(context, message):
 
 def npgettext(context, singular, plural, number):
     return _trans.npgettext(context, singular, plural, number)
+
 
 gettext_lazy = lazy(gettext, str)
 ugettext_lazy = lazy(ugettext, six.text_type)
@@ -210,8 +215,9 @@ def get_language_from_path(path):
     return _trans.get_language_from_path(path)
 
 
-def templatize(src, origin=None):
-    return _trans.templatize(src, origin)
+def templatize(src, **kwargs):
+    from .template import templatize
+    return templatize(src, **kwargs)
 
 
 def deactivate_all():
@@ -223,7 +229,13 @@ def _string_concat(*strings):
     Lazy variant of string concatenation, needed for translations that are
     constructed from multiple parts.
     """
+    warnings.warn(
+        'django.utils.translate.string_concat() is deprecated in '
+        'favor of django.utils.text.format_lazy().',
+        RemovedInDjango21Warning, stacklevel=2)
     return ''.join(force_text(s) for s in strings)
+
+
 string_concat = lazy(_string_concat, six.text_type)
 
 
@@ -248,7 +260,8 @@ def get_language_info(lang_code):
         info['name_translated'] = ugettext_lazy(info['name'])
     return info
 
-trim_whitespace_re = re.compile('\s*\n\s*')
+
+trim_whitespace_re = re.compile(r'\s*\n\s*')
 
 
 def trim_whitespace(s):

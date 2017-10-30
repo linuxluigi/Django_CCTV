@@ -35,3 +35,7 @@ CACHES = {
 }
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+
+# Wagtail
+
+BASE_URL = "%(domain_main)s"

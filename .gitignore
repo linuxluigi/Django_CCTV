@@ -58,3 +58,6 @@ fabric.properties
 # Project
 local_settings.py
 /static
+*.db
+/static
+/media

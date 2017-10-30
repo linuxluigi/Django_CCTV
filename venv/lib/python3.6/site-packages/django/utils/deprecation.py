@@ -4,12 +4,15 @@ import inspect
 import warnings
 
 
-class RemovedInDjango20Warning(PendingDeprecationWarning):
+class RemovedInDjango20Warning(DeprecationWarning):
     pass
 
 
-class RemovedInNextVersionWarning(DeprecationWarning):
+class RemovedInDjango21Warning(PendingDeprecationWarning):
     pass
+
+
+RemovedInNextVersionWarning = RemovedInDjango20Warning
 
 
 class warn_about_renamed_method(object):
@@ -118,6 +121,7 @@ class CallableBool:
 
     def __hash__(self):
         return hash(self.value)
+
 
 CallableFalse = CallableBool(False)
 CallableTrue = CallableBool(True)

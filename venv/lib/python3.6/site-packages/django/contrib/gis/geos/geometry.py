@@ -33,6 +33,7 @@ class GEOSGeometry(GEOSBase, ListMixin):
     _GEOS_CLASSES = None
 
     ptr_type = GEOM_PTR
+    destructor = capi.destroy_geom
     has_cs = False  # Only Point, LineString, LinearRing have coordinate sequences
 
     def __init__(self, geo_input, srid=None):
@@ -64,8 +65,6 @@ class GEOSGeometry(GEOSBase, ListMixin):
                 g = wkb_r().read(force_bytes(geo_input))
             elif json_regex.match(geo_input):
                 # Handling GeoJSON input.
-                if not gdal.HAS_GDAL:
-                    raise ValueError('Initializing geometry from JSON input requires GDAL.')
                 g = wkb_r().read(gdal.OGRGeometry(geo_input).wkb)
             else:
                 raise ValueError('String or unicode input unrecognized as WKT EWKT, and HEXEWKB.')
@@ -97,38 +96,30 @@ class GEOSGeometry(GEOSBase, ListMixin):
             self.srid = srid
 
         # Setting the class type (e.g., Point, Polygon, etc.)
-        if GEOSGeometry._GEOS_CLASSES is None:
-            # Lazy-loaded variable to avoid import conflicts with GEOSGeometry.
-            from .linestring import LineString, LinearRing
-            from .point import Point
-            from .polygon import Polygon
-            from .collections import (
-                GeometryCollection, MultiPoint, MultiLineString, MultiPolygon)
-            GEOSGeometry._GEOS_CLASSES = {
-                0: Point,
-                1: LineString,
-                2: LinearRing,
-                3: Polygon,
-                4: MultiPoint,
-                5: MultiLineString,
-                6: MultiPolygon,
-                7: GeometryCollection,
-            }
-        self.__class__ = GEOSGeometry._GEOS_CLASSES[self.geom_typeid]
+        if type(self) == GEOSGeometry:
+            if GEOSGeometry._GEOS_CLASSES is None:
+                # Lazy-loaded variable to avoid import conflicts with GEOSGeometry.
+                from .linestring import LineString, LinearRing
+                from .point import Point
+                from .polygon import Polygon
+                from .collections import (
+                    GeometryCollection, MultiPoint, MultiLineString, MultiPolygon,
+                )
+                GEOSGeometry._GEOS_CLASSES = {
+                    0: Point,
+                    1: LineString,
+                    2: LinearRing,
+                    3: Polygon,
+                    4: MultiPoint,
+                    5: MultiLineString,
+                    6: MultiPolygon,
+                    7: GeometryCollection,
+                }
+            self.__class__ = GEOSGeometry._GEOS_CLASSES[self.geom_typeid]
 
         # Setting the coordinate sequence for the geometry (will be None on
         # geometries that do not have coordinate sequences)
         self._set_cs()
-
-    def __del__(self):
-        """
-        Destroys this Geometry; in other words, frees the memory used by the
-        GEOS C++ object.
-        """
-        try:
-            capi.destroy_geom(self._ptr)
-        except (AttributeError, TypeError):
-            pass  # Some part might already have been garbage collected
 
     def __copy__(self):
         """
@@ -168,16 +159,26 @@ class GEOSGeometry(GEOSBase, ListMixin):
         self.ptr = ptr
         self._post_init(srid)
 
+    @classmethod
+    def _from_wkb(cls, wkb):
+        return wkb_r().read(wkb)
+
+    @classmethod
+    def from_gml(cls, gml_string):
+        return gdal.OGRGeometry.from_gml(gml_string).geos
+
     # Comparison operators
     def __eq__(self, other):
         """
         Equivalence testing, a Geometry may be compared with another Geometry
-        or a WKT representation.
+        or an EWKT representation.
         """
         if isinstance(other, six.string_types):
-            return self.wkt == other
+            if other.startswith('SRID=0;'):
+                return self.ewkt == other[7:]  # Test only WKT part of other
+            return self.ewkt == other
         elif isinstance(other, GEOSGeometry):
-            return self.equals_exact(other)
+            return self.srid == other.srid and self.equals_exact(other)
         else:
             return False
 
@@ -255,7 +256,7 @@ class GEOSGeometry(GEOSBase, ListMixin):
 
     def normalize(self):
         "Converts this Geometry to normal form (or canonical form)."
-        return capi.geos_normalize(self.ptr)
+        capi.geos_normalize(self.ptr)
 
     # #### Unary predicates ####
     @property
@@ -473,23 +474,17 @@ class GEOSGeometry(GEOSBase, ListMixin):
         return PreparedGeometry(self)
 
     # #### GDAL-specific output routines ####
+    def _ogr_ptr(self):
+        return gdal.OGRGeometry._from_wkb(self.wkb)
+
     @property
     def ogr(self):
         "Returns the OGR Geometry for this Geometry."
-        if not gdal.HAS_GDAL:
-            raise GEOSException('GDAL required to convert to an OGRGeometry.')
-        if self.srid:
-            try:
-                return gdal.OGRGeometry(self.wkb, self.srid)
-            except gdal.SRSException:
-                pass
-        return gdal.OGRGeometry(self.wkb)
+        return gdal.OGRGeometry(self._ogr_ptr(), self.srs)
 
     @property
     def srs(self):
         "Returns the OSR SpatialReference for SRID of this Geometry."
-        if not gdal.HAS_GDAL:
-            raise GEOSException('GDAL required to return a SpatialReference object.')
         if self.srid:
             try:
                 return gdal.SpatialReference(self.srid)
@@ -520,9 +515,6 @@ class GEOSGeometry(GEOSBase, ListMixin):
             else:
                 return
 
-        if not gdal.HAS_GDAL:
-            raise GEOSException("GDAL library is not available to transform() geometry.")
-
         if isinstance(ct, gdal.CoordTransform):
             # We don't care about SRID because CoordTransform presupposes
             # source SRS.
@@ -531,10 +523,10 @@ class GEOSGeometry(GEOSBase, ListMixin):
             raise GEOSException("Calling transform() with no SRID set is not supported")
 
         # Creating an OGR Geometry, which is then transformed.
-        g = gdal.OGRGeometry(self.wkb, srid)
+        g = gdal.OGRGeometry(self._ogr_ptr(), srid)
         g.transform(ct)
         # Getting a new GEOS pointer
-        ptr = wkb_r().read(g.wkb)
+        ptr = g._geos_ptr()
         if clone:
             # User wants a cloned transformed geometry returned.
             return GEOSGeometry(ptr, srid=g.srid)

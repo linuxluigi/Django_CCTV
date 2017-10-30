@@ -52,11 +52,12 @@ env.hosts = conf.get("HOSTS", [""])
 env.proj_name = conf.get("PROJECT_NAME", env.proj_app)
 env.venv_home = conf.get("VIRTUALENV_HOME", "/home/%s/.virtualenvs" % env.user)
 env.venv_path = join(env.venv_home, env.proj_name)
-env.proj_path = "/home/%s/mezzanine/%s" % (env.user, env.proj_name)
+env.proj_path = "/home/%s/django/%s" % (env.user, env.proj_name)
 env.manage = "%s/bin/python %s/manage.py" % (env.venv_path, env.proj_path)
 env.domains = conf.get("DOMAINS", [conf.get("LIVE_HOSTNAME", env.hosts[0])])
 env.domains_nginx = " ".join(env.domains)
 env.domains_regex = "|".join(env.domains)
+env.domain_main = env.domains[0]
 env.domains_python = ", ".join(["'%s'" % s for s in env.domains])
 env.ssl_disabled = ""
 env.vcs_tools = ["git", "hg"]
@@ -441,7 +442,7 @@ def install():
     # Install system requirements
     sudo("apt-get update -y -q")
     sudo("apt-get upgrade -y")
-    apt("libjpeg-dev python-dev python-setuptools git-core "
+    apt("libjpeg-dev python-dev python3-dev python-setuptools git-core "
         "postgresql libpq-dev memcached supervisor python-pip")
 
     # nginx rtmp
@@ -507,7 +508,7 @@ def create():
                 run("rm -rf %s" % env.proj_name)
             else:
                 abort()
-        run("virtualenv %s" % env.proj_name)
+        run("virtualenv -p python3 %s" % env.proj_name)
 
     # Upload project files
     if env.deploy_tool in env.vcs_tools:
@@ -537,14 +538,7 @@ def create():
         pip("gunicorn setproctitle psycopg2 "
             "django-compressor python-memcached")
         # Bootstrap the DB
-        manage("createdb --noinput --nodata")
-        python("from django.conf import settings;"
-               "from django.contrib.sites.models import Site;"
-               "Site.objects.filter(id=settings.SITE_ID).update(domain='%s');"
-               % env.domains[0])
-        for domain in env.domains:
-            python("from django.contrib.sites.models import Site;"
-                   "Site.objects.get_or_create(domain='%s');" % domain)
+        manage("migrate --noinput")
         if env.admin_pass:
             pw = env.admin_pass
             user_py = ("from django.contrib.auth import get_user_model;"

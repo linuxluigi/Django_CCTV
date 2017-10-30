@@ -1,8 +1,10 @@
 import logging
 import posixpath
+import warnings
 from collections import defaultdict
 
 from django.utils import six
+from django.utils.deprecation import RemovedInDjango21Warning
 from django.utils.safestring import mark_safe
 
 from .base import (
@@ -171,7 +173,8 @@ class ExtendsNode(Node):
 
         # Call Template._render explicitly so the parser context stays
         # the same.
-        return compiled_parent._render(context)
+        with context.render_context.push_state(compiled_parent, isolated_context=False):
+            return compiled_parent._render(context)
 
 
 class IncludeNode(Node):
@@ -195,11 +198,14 @@ class IncludeNode(Node):
             if not callable(getattr(template, 'render', None)):
                 # If not, we'll try our cache, and get_template()
                 template_name = template
-                cache = context.render_context.setdefault(self.context_key, {})
+                cache = context.render_context.dicts[0].setdefault(self, {})
                 template = cache.get(template_name)
                 if template is None:
                     template = context.template.engine.get_template(template_name)
                     cache[template_name] = template
+            # Use the base.Template of a backends.django.Template.
+            elif hasattr(template, 'template'):
+                template = template.template
             values = {
                 name: var.resolve(context)
                 for name, var in six.iteritems(self.extra_context)
@@ -208,10 +214,17 @@ class IncludeNode(Node):
                 return template.render(context.new(values))
             with context.push(**values):
                 return template.render(context)
-        except Exception:
+        except Exception as e:
             if context.template.engine.debug:
                 raise
             template_name = getattr(context, 'template_name', None) or 'unknown'
+            warnings.warn(
+                "Rendering {%% include '%s' %%} raised %s. In Django 2.1, "
+                "this exception will be raised rather than silenced and "
+                "rendered as an empty string." %
+                (template_name, e.__class__.__name__),
+                RemovedInDjango21Warning,
+            )
             logger.warning(
                 "Exception raised while rendering {%% include %%} for "
                 "template '%s'. Empty string rendered instead.",

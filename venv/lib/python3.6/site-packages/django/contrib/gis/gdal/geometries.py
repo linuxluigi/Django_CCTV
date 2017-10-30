@@ -52,6 +52,7 @@ from django.contrib.gis.gdal.prototypes import geom as capi, srs as srs_api
 from django.contrib.gis.gdal.srs import CoordTransform, SpatialReference
 from django.contrib.gis.geometry.regex import hex_regex, json_regex, wkt_regex
 from django.utils import six
+from django.utils.encoding import force_bytes
 from django.utils.six.moves import range
 
 
@@ -61,6 +62,7 @@ from django.utils.six.moves import range
 # The OGR_G_* routines are relevant here.
 class OGRGeometry(GDALBase):
     "Generally encapsulates an OGR geometry."
+    destructor = capi.destroy_geom
 
     def __init__(self, geom_input, srs=None):
         "Initializes Geometry on either WKT or an OGR pointer as input."
@@ -96,7 +98,7 @@ class OGRGeometry(GDALBase):
                 g = capi.create_geom(OGRGeomType(geom_input).num)
         elif isinstance(geom_input, six.memoryview):
             # WKB was passed in
-            g = capi.from_wkb(bytes(geom_input), None, byref(c_void_p()), len(geom_input))
+            g = self._from_wkb(geom_input)
         elif isinstance(geom_input, OGRGeomType):
             # OGRGeomType was passed in, an empty geometry will be created.
             g = capi.create_geom(geom_input.num)
@@ -119,13 +121,6 @@ class OGRGeometry(GDALBase):
         # Setting the class depending upon the OGR Geometry Type
         self.__class__ = GEO_CLASSES[self.geom_type.num]
 
-    def __del__(self):
-        "Deletes this Geometry."
-        try:
-            capi.destroy_geom(self._ptr)
-        except (AttributeError, TypeError):
-            pass  # Some part might already have been garbage collected
-
     # Pickle routines
     def __getstate__(self):
         srs = self.srs
@@ -144,11 +139,19 @@ class OGRGeometry(GDALBase):
         self.srs = srs
 
     @classmethod
+    def _from_wkb(cls, geom_input):
+        return capi.from_wkb(bytes(geom_input), None, byref(c_void_p()), len(geom_input))
+
+    @classmethod
     def from_bbox(cls, bbox):
         "Constructs a Polygon from a bounding box (4-tuple)."
         x0, y0, x1, y1 = bbox
         return OGRGeometry('POLYGON((%s %s, %s %s, %s %s, %s %s, %s %s))' % (
             x0, y0, x0, y1, x1, y1, x1, y0, x0, y0))
+
+    @classmethod
+    def from_gml(cls, gml_string):
+        return cls(capi.from_gml(force_bytes(gml_string)))
 
     # ### Geometry set-like operations ###
     # g = g1 | g2
@@ -246,6 +249,10 @@ class OGRGeometry(GDALBase):
         return Envelope(capi.get_envelope(self.ptr, byref(OGREnvelope())))
 
     @property
+    def empty(self):
+        return capi.is_empty(self.ptr)
+
+    @property
     def extent(self):
         "Returns the envelope as a 4-tuple, instead of as an Envelope object."
         return self.envelope.tuple
@@ -296,11 +303,15 @@ class OGRGeometry(GDALBase):
     srid = property(_get_srid, _set_srid)
 
     # #### Output Methods ####
+    def _geos_ptr(self):
+        from django.contrib.gis.geos import GEOSGeometry
+        return GEOSGeometry._from_wkb(self.wkb)
+
     @property
     def geos(self):
         "Returns a GEOSGeometry object from this OGRGeometry."
         from django.contrib.gis.geos import GEOSGeometry
-        return GEOSGeometry(self.wkb, self.srid)
+        return GEOSGeometry(self._geos_ptr(), self.srid)
 
     @property
     def gml(self):
@@ -495,6 +506,14 @@ class OGRGeometry(GDALBase):
 # The subclasses for OGR Geometry.
 class Point(OGRGeometry):
 
+    def _geos_ptr(self):
+        from django.contrib.gis import geos
+        return geos.Point._create_empty() if self.empty else super(Point, self)._geos_ptr()
+
+    @classmethod
+    def _create_empty(cls):
+        return capi.create_geom(OGRGeomType('point').num)
+
     @property
     def x(self):
         "Returns the X coordinate for this Point."
@@ -686,6 +705,7 @@ class MultiLineString(GeometryCollection):
 
 class MultiPolygon(GeometryCollection):
     pass
+
 
 # Class mapping dictionary (using the OGRwkbGeometryType as the key)
 GEO_CLASSES = {1: Point,

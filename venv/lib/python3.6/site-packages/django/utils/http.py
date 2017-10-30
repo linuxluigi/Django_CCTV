@@ -6,12 +6,14 @@ import datetime
 import re
 import sys
 import unicodedata
+import warnings
 from binascii import Error as BinasciiError
 from email.utils import formatdate
 
 from django.core.exceptions import TooManyFieldsSent
 from django.utils import six
 from django.utils.datastructures import MultiValueDict
+from django.utils.deprecation import RemovedInDjango21Warning
 from django.utils.encoding import force_bytes, force_str, force_text
 from django.utils.functional import keep_lazy_text
 from django.utils.six.moves.urllib.parse import (
@@ -30,7 +32,15 @@ else:
         scheme_chars, uses_params,
     )
 
-ETAG_MATCH = re.compile(r'(?:W/)?"((?:\\.|[^"])*)"')
+# based on RFC 7232, Appendix C
+ETAG_MATCH = re.compile(r'''
+    \A(      # start of string and capture group
+    (?:W/)?  # optional weak indicator
+    "        # opening quote
+    [^"]*    # any sequence of non-quote characters
+    "        # end quote
+    )\Z      # end of string and capture group
+''', re.X)
 
 MONTHS = 'jan feb mar apr may jun jul aug sep oct nov dec'.split()
 __D = r'(?P<day>\d{2})'
@@ -188,7 +198,7 @@ def base36_to_int(s):
     input won't fit into an int.
     """
     # To prevent overconsumption of server resources, reject any
-    # base36 string that is long than 13 base36 digits (13 digits
+    # base36 string that is longer than 13 base36 digits (13 digits
     # is sufficient to base36-encode any 64-bit integer)
     if len(s) > 13:
         raise ValueError("Base36 input too large")
@@ -243,30 +253,27 @@ def urlsafe_base64_decode(s):
 
 def parse_etags(etag_str):
     """
-    Parses a string with one or several etags passed in If-None-Match and
-    If-Match headers by the rules in RFC 2616. Returns a list of etags
-    without surrounding double quotes (") and unescaped from \<CHAR>.
+    Parse a string of ETags given in an If-None-Match or If-Match header as
+    defined by RFC 7232. Return a list of quoted ETags, or ['*'] if all ETags
+    should be matched.
     """
-    etags = ETAG_MATCH.findall(etag_str)
-    if not etags:
-        # etag_str has wrong format, treat it as an opaque string then
-        return [etag_str]
-    etags = [e.encode('ascii').decode('unicode_escape') for e in etags]
-    return etags
+    if etag_str.strip() == '*':
+        return ['*']
+    else:
+        # Parse each ETag individually, and return any that are valid.
+        etag_matches = (ETAG_MATCH.match(etag.strip()) for etag in etag_str.split(','))
+        return [match.group(1) for match in etag_matches if match]
 
 
-def quote_etag(etag):
+def quote_etag(etag_str):
     """
-    Wraps a string in double quotes escaping contents as necessary.
+    If the provided string is already a quoted ETag, return it. Otherwise, wrap
+    the string in quotes, making it a strong ETag.
     """
-    return '"%s"' % etag.replace('\\', '\\\\').replace('"', '\\"')
-
-
-def unquote_etag(etag):
-    """
-    Unquote an ETag string; i.e. revert quote_etag().
-    """
-    return etag.strip('"').replace('\\"', '"').replace('\\\\', '\\') if etag else etag
+    if ETAG_MATCH.match(etag_str):
+        return etag_str
+    else:
+        return '"%s"' % etag_str
 
 
 def is_same_domain(host, pattern):
@@ -288,12 +295,15 @@ def is_same_domain(host, pattern):
     )
 
 
-def is_safe_url(url, host=None):
+def is_safe_url(url, host=None, allowed_hosts=None, require_https=False):
     """
     Return ``True`` if the url is a safe redirection (i.e. it doesn't point to
     a different host and uses a safe scheme).
 
     Always returns ``False`` on an empty url.
+
+    If ``require_https`` is ``True``, only 'https' will be considered a valid
+    scheme, as opposed to 'http' and 'https' with the default, ``False``.
     """
     if url is not None:
         url = url.strip()
@@ -304,9 +314,20 @@ def is_safe_url(url, host=None):
             url = force_text(url)
         except UnicodeDecodeError:
             return False
+    if allowed_hosts is None:
+        allowed_hosts = set()
+    if host:
+        warnings.warn(
+            "The host argument is deprecated, use allowed_hosts instead.",
+            RemovedInDjango21Warning,
+            stacklevel=2,
+        )
+        # Avoid mutating the passed in allowed_hosts.
+        allowed_hosts = allowed_hosts | {host}
     # Chrome treats \ completely as / in paths but it could be part of some
     # basic auth credentials so we need to check both URLs.
-    return _is_safe_url(url, host) and _is_safe_url(url.replace('\\', '/'), host)
+    return (_is_safe_url(url, allowed_hosts, require_https=require_https) and
+            _is_safe_url(url.replace('\\', '/'), allowed_hosts, require_https=require_https))
 
 
 # Copied from urllib.parse.urlparse() but uses fixed urlsplit() function.
@@ -361,12 +382,15 @@ def _urlsplit(url, scheme='', allow_fragments=True):
     return _coerce_result(v) if _coerce_args else v
 
 
-def _is_safe_url(url, host):
+def _is_safe_url(url, allowed_hosts, require_https=False):
     # Chrome considers any URL with more than two slashes to be absolute, but
     # urlparse is not so flexible. Treat any url with three slashes as unsafe.
     if url.startswith('///'):
         return False
-    url_info = _urlparse(url)
+    try:
+        url_info = _urlparse(url)
+    except ValueError:  # e.g. invalid IPv6 addresses
+        return False
     # Forbid URLs like http:///example.com - with a scheme, but without a hostname.
     # In that URL, example.com is not the hostname but, a path component. However,
     # Chrome will still consider example.com to be the hostname, so we must not
@@ -378,8 +402,13 @@ def _is_safe_url(url, host):
     # URL and might consider the URL as scheme relative.
     if unicodedata.category(url[0])[0] == 'C':
         return False
-    return ((not url_info.netloc or url_info.netloc == host) and
-            (not url_info.scheme or url_info.scheme in ['http', 'https']))
+    scheme = url_info.scheme
+    # Consider URLs without a scheme (e.g. //example.com/p) to be http.
+    if not url_info.scheme and url_info.netloc:
+        scheme = 'http'
+    valid_schemes = ['https'] if require_https else ['http', 'https']
+    return ((not url_info.netloc or url_info.netloc in allowed_hosts) and
+            (not scheme or scheme in valid_schemes))
 
 
 def limited_parse_qsl(qs, keep_blank_values=False, encoding='utf-8',

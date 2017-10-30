@@ -3,14 +3,15 @@ from __future__ import unicode_literals
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 
+UserModel = get_user_model()
+
 
 class ModelBackend(object):
     """
     Authenticates against settings.AUTH_USER_MODEL.
     """
 
-    def authenticate(self, username=None, password=None, **kwargs):
-        UserModel = get_user_model()
+    def authenticate(self, request, username=None, password=None, **kwargs):
         if username is None:
             username = kwargs.get(UserModel.USERNAME_FIELD)
         try:
@@ -97,7 +98,6 @@ class ModelBackend(object):
         return False
 
     def get_user(self, user_id):
-        UserModel = get_user_model()
         try:
             user = UserModel._default_manager.get(pk=user_id)
         except UserModel.DoesNotExist:
@@ -125,7 +125,7 @@ class RemoteUserBackend(ModelBackend):
     # Create a User object if not already in the database?
     create_unknown_user = True
 
-    def authenticate(self, remote_user):
+    def authenticate(self, request, remote_user):
         """
         The username passed as ``remote_user`` is considered trusted.  This
         method simply returns the ``User`` object with the given username,
@@ -138,8 +138,6 @@ class RemoteUserBackend(ModelBackend):
             return
         user = None
         username = self.clean_username(remote_user)
-
-        UserModel = get_user_model()
 
         # Note that this could be accomplished in one try-except clause, but
         # instead we use get_or_create when creating unknown users since it has

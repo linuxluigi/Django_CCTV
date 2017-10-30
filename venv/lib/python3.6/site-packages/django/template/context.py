@@ -67,6 +67,18 @@ class BaseContext(object):
         "Set a variable in the current context"
         self.dicts[-1][key] = value
 
+    def set_upward(self, key, value):
+        """
+        Set a variable in one of the higher contexts if it exists there,
+        otherwise in the current context.
+        """
+        context = self.dicts[-1]
+        for d in reversed(self.dicts):
+            if key in d.keys():
+                context = d
+                break
+        context[key] = value
+
     def __getitem__(self, key):
         "Get a variable's value, starting at the current context and going upward"
         for d in reversed(self.dicts):
@@ -187,6 +199,8 @@ class RenderContext(BaseContext):
     rendering of other templates as they would if they were stored in the normal
     template context.
     """
+    template = None
+
     def __iter__(self):
         for d in self.dicts[-1]:
             yield d
@@ -199,6 +213,19 @@ class RenderContext(BaseContext):
 
     def __getitem__(self, key):
         return self.dicts[-1][key]
+
+    @contextmanager
+    def push_state(self, template, isolated_context=True):
+        initial = self.template
+        self.template = template
+        if isolated_context:
+            self.push()
+        try:
+            yield
+        finally:
+            self.template = initial
+            if isolated_context:
+                self.pop()
 
 
 class RequestContext(Context):
@@ -256,6 +283,8 @@ def make_context(context, request=None, **kwargs):
     """
     Create a suitable Context from a plain dict and optionally an HttpRequest.
     """
+    if context is not None and not isinstance(context, dict):
+        raise TypeError('context must be a dict rather than %s.' % context.__class__.__name__)
     if request is None:
         context = Context(context, **kwargs)
     else:

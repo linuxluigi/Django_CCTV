@@ -6,7 +6,9 @@ import re
 from difflib import SequenceMatcher
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.exceptions import (
+    FieldDoesNotExist, ImproperlyConfigured, ValidationError,
+)
 from django.utils import lru_cache
 from django.utils._os import upath
 from django.utils.encoding import force_text
@@ -86,6 +88,8 @@ def _password_validators_help_text_html(password_validators=None):
     help_texts = password_validators_help_texts(password_validators)
     help_items = [format_html('<li>{}</li>', help_text) for help_text in help_texts]
     return '<ul>%s</ul>' % ''.join(help_items) if help_items else ''
+
+
 password_validators_help_text_html = lazy(_password_validators_help_text_html, text_type)
 
 
@@ -141,10 +145,13 @@ class UserAttributeSimilarityValidator(object):
             value = getattr(user, attribute_name, None)
             if not value or not isinstance(value, string_types):
                 continue
-            value_parts = re.split('\W+', value) + [value]
+            value_parts = re.split(r'\W+', value) + [value]
             for value_part in value_parts:
-                if SequenceMatcher(a=password.lower(), b=value_part.lower()).quick_ratio() > self.max_similarity:
-                    verbose_name = force_text(user._meta.get_field(attribute_name).verbose_name)
+                if SequenceMatcher(a=password.lower(), b=value_part.lower()).quick_ratio() >= self.max_similarity:
+                    try:
+                        verbose_name = force_text(user._meta.get_field(attribute_name).verbose_name)
+                    except FieldDoesNotExist:
+                        verbose_name = attribute_name
                     raise ValidationError(
                         _("The password is too similar to the %(verbose_name)s."),
                         code='password_too_similar',
@@ -169,7 +176,8 @@ class CommonPasswordValidator(object):
 
     def __init__(self, password_list_path=DEFAULT_PASSWORD_LIST_PATH):
         try:
-            common_passwords_lines = gzip.open(password_list_path).read().decode('utf-8').splitlines()
+            with gzip.open(password_list_path) as f:
+                common_passwords_lines = f.read().decode('utf-8').splitlines()
         except IOError:
             with open(password_list_path) as f:
                 common_passwords_lines = f.readlines()

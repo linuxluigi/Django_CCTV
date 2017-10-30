@@ -125,12 +125,17 @@ class ChangeList(object):
                     if not isinstance(field, models.Field):
                         field_path = field
                         field = get_fields_from_path(self.model, field_path)[-1]
+
+                    lookup_params_count = len(lookup_params)
                     spec = field_list_filter_class(
                         field, request, lookup_params,
                         self.model, self.model_admin, field_path=field_path
                     )
-                    # Check if we need to use distinct()
-                    use_distinct = use_distinct or lookup_needs_distinct(self.lookup_opts, field_path)
+                    # field_list_filter_class removes any lookup_params it
+                    # processes. If that happened, check if distinct() is
+                    # needed to remove duplicate results.
+                    if lookup_params_count > len(lookup_params):
+                        use_distinct = use_distinct or lookup_needs_distinct(self.lookup_opts, field_path)
                 if spec and spec.has_output():
                     filter_specs.append(spec)
 
@@ -371,6 +376,9 @@ class ChangeList(object):
                 pass
             else:
                 if isinstance(field.remote_field, models.ManyToOneRel):
+                    # <FK>_id field names don't require a join.
+                    if field_name == field.get_attname():
+                        continue
                     return True
         return False
 

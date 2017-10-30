@@ -24,7 +24,13 @@ class DatabaseOperations(BaseDatabaseOperations):
             # DAYOFWEEK() returns an integer, 1-7, Sunday=1.
             # Note: WEEKDAY() returns 0-6, Monday=0.
             return "DAYOFWEEK(%s)" % field_name
+        elif lookup_type == 'week':
+            # Override the value of default_week_format for consistency with
+            # other database backends.
+            # Mode 3: Monday, 1-53, with 4 or more days this year.
+            return "WEEK(%s, 3)" % field_name
         else:
+            # EXTRACT returns 1-53 based on ISO-8601 for the week number.
             return "EXTRACT(%s FROM %s)" % (lookup_type.upper(), field_name)
 
     def date_trunc_sql(self, lookup_type, field_name):
@@ -51,6 +57,11 @@ class DatabaseOperations(BaseDatabaseOperations):
         sql = "DATE(%s)" % field_name
         return sql, params
 
+    def datetime_cast_time_sql(self, field_name, tzname):
+        field_name, params = self._convert_field_to_tz(field_name, tzname)
+        sql = "TIME(%s)" % field_name
+        return sql, params
+
     def datetime_extract_sql(self, lookup_type, field_name, tzname):
         field_name, params = self._convert_field_to_tz(field_name, tzname)
         sql = self.date_extract_sql(lookup_type, field_name)
@@ -70,18 +81,26 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql = "CAST(DATE_FORMAT(%s, '%s') AS DATETIME)" % (field_name, format_str)
         return sql, params
 
+    def time_trunc_sql(self, lookup_type, field_name):
+        fields = {
+            'hour': '%%H:00:00',
+            'minute': '%%H:%%i:00',
+            'second': '%%H:%%i:%%s',
+        }  # Use double percents to escape.
+        if lookup_type in fields:
+            format_str = fields[lookup_type]
+            return "CAST(DATE_FORMAT(%s, '%s') AS TIME)" % (field_name, format_str)
+        else:
+            return "TIME(%s)" % (field_name)
+
     def date_interval_sql(self, timedelta):
-        return "INTERVAL '%d 0:0:%d:%d' DAY_MICROSECOND" % (
-            timedelta.days, timedelta.seconds, timedelta.microseconds), []
+        return "INTERVAL '%06f' SECOND_MICROSECOND" % (timedelta.total_seconds()), []
 
     def format_for_duration_arithmetic(self, sql):
         if self.connection.features.supports_microsecond_precision:
             return 'INTERVAL %s MICROSECOND' % sql
         else:
             return 'INTERVAL FLOOR(%s / 1000000) SECOND' % sql
-
-    def drop_foreignkey_sql(self):
-        return "DROP FOREIGN KEY"
 
     def force_no_ordering(self):
         """
@@ -141,6 +160,10 @@ class DatabaseOperations(BaseDatabaseOperations):
         if value is None:
             return None
 
+        # Expression values are adapted by the database.
+        if hasattr(value, 'resolve_expression'):
+            return value
+
         # MySQL doesn't support tz-aware datetimes
         if timezone.is_aware(value):
             if settings.USE_TZ:
@@ -157,6 +180,10 @@ class DatabaseOperations(BaseDatabaseOperations):
         if value is None:
             return None
 
+        # Expression values are adapted by the database.
+        if hasattr(value, 'resolve_expression'):
+            return value
+
         # MySQL doesn't support tz-aware times
         if timezone.is_aware(value):
             raise ValueError("MySQL backend does not support timezone-aware times.")
@@ -172,11 +199,15 @@ class DatabaseOperations(BaseDatabaseOperations):
         return "VALUES " + values_sql
 
     def combine_expression(self, connector, sub_expressions):
-        """
-        MySQL requires special cases for ^ operators in query expressions
-        """
         if connector == '^':
             return 'POW(%s)' % ','.join(sub_expressions)
+        # Convert the result to a signed integer since MySQL's binary operators
+        # return an unsigned integer.
+        elif connector in ('&', '|', '<<'):
+            return 'CONVERT(%s, SIGNED)' % connector.join(sub_expressions)
+        elif connector == '>>':
+            lhs, rhs = sub_expressions
+            return 'FLOOR(%(lhs)s / POW(2, %(rhs)s))' % {'lhs': lhs, 'rhs': rhs}
         return super(DatabaseOperations, self).combine_expression(connector, sub_expressions)
 
     def get_db_converters(self, expression):

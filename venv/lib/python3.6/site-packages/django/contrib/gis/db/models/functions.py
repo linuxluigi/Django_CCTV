@@ -1,7 +1,8 @@
 from decimal import Decimal
 
-from django.contrib.gis.db.models.fields import GeometryField
+from django.contrib.gis.db.models.fields import GeometryField, RasterField
 from django.contrib.gis.db.models.sql import AreaField
+from django.contrib.gis.geometry.backend import Geometry
 from django.contrib.gis.measure import (
     Area as AreaMeasure, Distance as DistanceMeasure,
 )
@@ -37,10 +38,16 @@ class GeoFunc(Func):
         except (AttributeError, FieldError):
             return None
 
-    def as_sql(self, compiler, connection):
+    @property
+    def geo_field(self):
+        return GeometryField(srid=self.srid) if self.srid else None
+
+    def as_sql(self, compiler, connection, **extra_context):
         if self.function is None:
             self.function = connection.ops.spatial_function_name(self.name)
-        return super(GeoFunc, self).as_sql(compiler, connection)
+        if any(isinstance(field, RasterField) for field in self.get_source_fields()):
+            raise TypeError("Geometry functions not supported for raster fields.")
+        return super(GeoFunc, self).as_sql(compiler, connection, **extra_context)
 
     def resolve_expression(self, *args, **kwargs):
         res = super(GeoFunc, self).resolve_expression(*args, **kwargs)
@@ -87,6 +94,8 @@ class GeomValue(Value):
 
 class GeoFuncWithGeoParam(GeoFunc):
     def __init__(self, expression, geom, *expressions, **extra):
+        if not isinstance(geom, Geometry):
+            raise TypeError("Please provide a geometry object.")
         if not hasattr(geom, 'srid') or not geom.srid:
             raise ValueError("Please provide a geometry attribute with a defined SRID.")
         super(GeoFuncWithGeoParam, self).__init__(expression, GeomValue(geom), *expressions, **extra)
@@ -117,25 +126,33 @@ class Area(OracleToleranceMixin, GeoFunc):
     output_field_class = AreaField
     arity = 1
 
-    def as_sql(self, compiler, connection):
+    def as_sql(self, compiler, connection, **extra_context):
         if connection.ops.geography:
             self.output_field.area_att = 'sq_m'
         else:
             # Getting the area units of the geographic field.
-            source_fields = self.get_source_fields()
-            if len(source_fields):
-                source_field = source_fields[0]
-                if source_field.geodetic(connection):
+            geo_field = self.geo_field
+            if geo_field.geodetic(connection):
+                if connection.features.supports_area_geodetic:
+                    self.output_field.area_att = 'sq_m'
+                else:
                     # TODO: Do we want to support raw number areas for geodetic fields?
                     raise NotImplementedError('Area on geodetic coordinate systems not supported.')
-                units_name = source_field.units_name(connection)
+            else:
+                units_name = geo_field.units_name(connection)
                 if units_name:
                     self.output_field.area_att = AreaMeasure.unit_attname(units_name)
-        return super(Area, self).as_sql(compiler, connection)
+        return super(Area, self).as_sql(compiler, connection, **extra_context)
 
     def as_oracle(self, compiler, connection):
         self.output_field = AreaField('sq_m')  # Oracle returns area in units of meters.
         return super(Area, self).as_oracle(compiler, connection)
+
+    def as_sqlite(self, compiler, connection, **extra_context):
+        if self.geo_field.geodetic(connection):
+            extra_context['template'] = '%(function)s(%(expressions)s, %(spheroid)d)'
+            extra_context['spheroid'] = True
+        return self.as_sql(compiler, connection, **extra_context)
 
 
 class AsGeoJSON(GeoFunc):
@@ -167,12 +184,21 @@ class AsGML(GeoFunc):
             expressions.append(self._handle_param(precision, 'precision', six.integer_types))
         super(AsGML, self).__init__(*expressions, **extra)
 
+    def as_oracle(self, compiler, connection, **extra_context):
+        source_expressions = self.get_source_expressions()
+        version = source_expressions[0]
+        clone = self.copy()
+        clone.set_source_expressions([source_expressions[1]])
+        extra_context['function'] = 'SDO_UTIL.TO_GML311GEOMETRY' if version.value == 3 else 'SDO_UTIL.TO_GMLGEOMETRY'
+        return super(AsGML, clone).as_sql(compiler, connection, **extra_context)
+
 
 class AsKML(AsGML):
     def as_sqlite(self, compiler, connection):
         # No version parameter
-        self.source_expressions.pop(0)
-        return super(AsKML, self).as_sql(compiler, connection)
+        clone = self.copy()
+        clone.set_source_expressions(self.get_source_expressions()[1:])
+        return clone.as_sql(compiler, connection)
 
 
 class AsSVG(GeoFunc):
@@ -188,9 +214,14 @@ class AsSVG(GeoFunc):
         super(AsSVG, self).__init__(*expressions, **extra)
 
 
-class BoundingCircle(GeoFunc):
+class BoundingCircle(OracleToleranceMixin, GeoFunc):
     def __init__(self, expression, num_seg=48, **extra):
         super(BoundingCircle, self).__init__(*[expression, num_seg], **extra)
+
+    def as_oracle(self, compiler, connection):
+        clone = self.copy()
+        clone.set_source_expressions([self.get_source_expressions()[0]])
+        return super(BoundingCircle, clone).as_oracle(compiler, connection)
 
 
 class Centroid(OracleToleranceMixin, GeoFunc):
@@ -208,7 +239,7 @@ class DistanceResultMixin(object):
     def convert_value(self, value, expression, connection, context):
         if value is None:
             return None
-        geo_field = GeometryField(srid=self.srid)  # Fake field to get SRID info
+        geo_field = self.geo_field
         if geo_field.geodetic(connection):
             dist_att = 'm'
         else:
@@ -244,17 +275,27 @@ class Distance(DistanceResultMixin, OracleToleranceMixin, GeoFuncWithGeoParam):
         elif geo_field.geodetic(connection):
             # Geometry fields with geodetic (lon/lat) coordinates need special distance functions
             if self.spheroid:
-                self.function = 'ST_Distance_Spheroid'  # More accurate, resource intensive
+                # DistanceSpheroid is more accurate and resource intensive than DistanceSphere
+                self.function = connection.ops.spatial_function_name('DistanceSpheroid')
                 # Replace boolean param by the real spheroid of the base field
                 self.source_expressions[2] = Value(geo_field._spheroid)
             else:
-                self.function = 'ST_Distance_Sphere'
+                self.function = connection.ops.spatial_function_name('DistanceSphere')
         return super(Distance, self).as_sql(compiler, connection)
 
     def as_oracle(self, compiler, connection):
         if self.spheroid:
             self.source_expressions.pop(2)
         return super(Distance, self).as_oracle(compiler, connection)
+
+    def as_sqlite(self, compiler, connection, **extra_context):
+        if self.spheroid:
+            self.source_expressions.pop(2)
+        if self.geo_field.geodetic(connection):
+            # SpatiaLite returns NULL instead of zero on geodetic coordinates
+            extra_context['template'] = 'COALESCE(%(function)s(%(expressions)s, %(spheroid)s), 0)'
+            extra_context['spheroid'] = int(bool(self.spheroid))
+        return super(Distance, self).as_sql(compiler, connection, **extra_context)
 
 
 class Envelope(GeoFunc):
@@ -279,8 +320,12 @@ class Intersection(OracleToleranceMixin, GeoFuncWithGeoParam):
     arity = 2
 
 
-class IsValid(GeoFunc):
+class IsValid(OracleToleranceMixin, GeoFunc):
     output_field_class = BooleanField
+
+    def as_oracle(self, compiler, connection, **extra_context):
+        sql, params = super(IsValid, self).as_oracle(compiler, connection, **extra_context)
+        return "CASE %s WHEN 'TRUE' THEN 1 ELSE 0 END" % sql, params
 
 
 class Length(DistanceResultMixin, OracleToleranceMixin, GeoFunc):
@@ -302,7 +347,7 @@ class Length(DistanceResultMixin, OracleToleranceMixin, GeoFunc):
             self.source_expressions.append(Value(self.spheroid))
         elif geo_field.geodetic(connection):
             # Geometry fields with geodetic (lon/lat) coordinates need length_spheroid
-            self.function = 'ST_Length_Spheroid'
+            self.function = connection.ops.spatial_function_name('LengthSpheroid')
             self.source_expressions.append(Value(geo_field._spheroid))
         else:
             dim = min(f.dim for f in self.get_source_fields() if f)
@@ -338,9 +383,10 @@ class NumPoints(GeoFunc):
     output_field_class = IntegerField
     arity = 1
 
-    def as_sqlite(self, compiler, connection):
+    def as_sql(self, compiler, connection):
         if self.source_expressions[self.geom_param_pos].output_field.geom_type != 'LINESTRING':
-            raise TypeError("SpatiaLite NumPoints can only operate on LineString content")
+            if not connection.features.supports_num_points_poly:
+                raise TypeError('NumPoints can only operate on LineString content on this database.')
         return super(NumPoints, self).as_sql(compiler, connection)
 
 
@@ -415,6 +461,8 @@ class Transform(GeoFunc):
             expression,
             self._handle_param(srid, 'srid', six.integer_types),
         ]
+        if 'output_field' not in extra:
+            extra['output_field'] = GeometryField(srid=srid)
         super(Transform, self).__init__(*expressions, **extra)
 
     @property
@@ -422,22 +470,12 @@ class Transform(GeoFunc):
         # Make srid the resulting srid of the transformation
         return self.source_expressions[self.geom_param_pos + 1].value
 
-    def convert_value(self, value, expression, connection, context):
-        value = super(Transform, self).convert_value(value, expression, connection, context)
-        if not connection.ops.postgis and not value.srid:
-            # Some backends do not set the srid on the returning geometry
-            value.srid = self.srid
-        return value
-
 
 class Translate(Scale):
     def as_sqlite(self, compiler, connection):
-        func_name = connection.ops.spatial_function_name(self.name)
-        if func_name == 'ST_Translate' and len(self.source_expressions) < 4:
-            # Always provide the z parameter for ST_Translate (Spatialite >= 3.1)
+        if len(self.source_expressions) < 4:
+            # Always provide the z parameter for ST_Translate
             self.source_expressions.append(Value(0))
-        elif func_name == 'ShiftCoords' and len(self.source_expressions) > 3:
-            raise ValueError("This version of Spatialite doesn't support 3D")
         return super(Translate, self).as_sqlite(compiler, connection)
 
 
