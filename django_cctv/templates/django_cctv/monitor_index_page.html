@@ -7,4 +7,12 @@
     {# See also the blog index or events index where the listing is created from a method defined in models.py #}
     {% monitor_index_listing calling_page=self %}
 
+    {% if self.intro %}
+        <div class="col-sm-12">
+            <div class="body-content">
+                {{ self.intro|richtext }}
+            </div>
+        </div>
+    {% endif %}
+
 {% endblock %}

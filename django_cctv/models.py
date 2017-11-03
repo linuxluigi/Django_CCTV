@@ -33,7 +33,7 @@ class MonitorPage(Page):
     """
     Single Monitor (Cam / Stream) Page
     """
-    stream_key = RichTextField(blank=True)
+    stream_key = models.CharField(max_length=255, blank=True)
     body = RichTextField(blank=True)
 
     search_fields = Page.search_fields + [

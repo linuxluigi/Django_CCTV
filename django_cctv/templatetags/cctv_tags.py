@@ -1,6 +1,6 @@
 from django import template
 
-from django_cctv.models import Page
+from django_cctv.models import Page, MonitorPage
 
 register = template.Library()
 
@@ -57,7 +57,12 @@ def top_menu_children(context, parent):
     takes_context=True
 )
 def monitor_index_listing(context, calling_page):
-    pages = calling_page.get_children().live()
+    pages = calling_page.get_children().live().type(MonitorPage)
+
+    for i in range(0, len(pages)):
+        page = MonitorPage.objects.get(pk=pages[i].pk)
+        pages[i].stream_key = page.stream_key
+
     return {
         'pages': pages,
         # required by the pageurl tag that we want to use within this template
