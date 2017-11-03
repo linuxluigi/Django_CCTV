@@ -69,6 +69,8 @@ env.num_workers = conf.get("NUM_WORKERS",
 
 env.secret_key = conf.get("SECRET_KEY", "")
 env.nevercache_key = conf.get("NEVERCACHE_KEY", "")
+env.nginx_auth_user = conf.get("NGINX_AUTH_USER", "")
+env.nginx_auth_pass = conf.get("NGINX_AUTH_PASS", "")
 
 if not env.secret_key:
     print("Aborting, no SECRET_KEY setting defined.")
@@ -445,6 +447,9 @@ def install():
     apt("libjpeg-dev python-dev python3-dev python-setuptools git-core "
         "postgresql libpq-dev memcached supervisor python-pip")
 
+    # nginx basic auth
+    apt("apache2-utils")
+
     # nginx rtmp
     apt("git gcc make libpcre3-dev libssl-dev")
     apt("build-essential libpcre3 libpcre3-dev libssl-dev")
@@ -664,6 +669,10 @@ def deploy():
         manage("migrate --noinput")
     for name in get_templates():
         upload_template_and_reload(name)
+
+    # update nginx basic auth
+    sudo("htpasswd -bc /usr/local/nginx/conf/.htpasswd %s %s" % (env.nginx_auth_user, env.nginx_auth_pass))
+
     restart()
     return True
 

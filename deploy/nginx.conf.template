@@ -104,6 +104,9 @@ http {
         }
 
         location /stream {
+            auth_basic "Restricted";                                #For Basic Auth
+            auth_basic_user_file /usr/local/nginx/conf/.htpasswd;   #For Basic Auth
+
             # Disable cache
             add_header 'Cache-Control' 'no-cache';
 
