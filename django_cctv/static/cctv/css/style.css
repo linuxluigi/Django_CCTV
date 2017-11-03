@@ -1,0 +1,78 @@
+/* page content begin below header */
+body {
+    padding-top: 60px;
+}
+
+/* logo class usage <div class="logo">Team</div> */
+.logo {
+    font-weight: normal;
+    color: #FFFFFF;
+    letter-spacing: 1pt;
+    word-spacing: 2pt;
+    font-size: 30px;
+    font-family: helvetica, sans-serif;
+    line-height: 1;
+    margin: 0px;
+    padding: 0px;
+}
+
+.logo::after {
+    content: "CCTV";
+    color: red;
+}
+
+.logo::before {
+    content: "Django ";
+    color: white;
+}
+
+/* logo class usage <div class-big="logo">Team</div> */
+.logo-big {
+    font-weight: normal;
+    color: #FFFFFF;
+    letter-spacing: 0pt;
+    word-spacing: 2pt;
+    font-size: 60px;
+    text-align: center;
+    font-family: helvetica, sans-serif;
+    line-height: 1;
+    margin: 0px;
+    padding: 0px;
+}
+
+.logo-big::after {
+    content: "Z";
+    color: red;
+}
+
+.masonry-box {
+    border-radius: 25px;
+    background: #2D333A;
+    padding: 40px;
+}
+
+/* Masonry grid layout */
+.grid-sizer,
+
+    /* Masonry item small */
+.grid-item-small {
+    margin: auto auto 10px;
+    width: 100px;
+}
+
+/* Masonry item media */
+.grid-item-medium {
+    margin: auto auto 10px;
+    width: 200px;
+}
+
+/* Masonry item big */
+.grid-item-big {
+    margin: auto auto 10px;
+    width: 250px;
+}
+
+/* round corner */
+.round-corner {
+    border-radius: 25px;
+}

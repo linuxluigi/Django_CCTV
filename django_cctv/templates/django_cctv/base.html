@@ -1,0 +1,108 @@
+{% load cache compress static wagtailuserbar cctv_tags %}
+
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html lang="{{ LANGUAGE_CODE|default:"de" }}" class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html lang="{{ LANGUAGE_CODE|default:"de" }}" class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html lang="{{ LANGUAGE_CODE|default:"de" }}" class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!-->
+<html lang="{{ LANGUAGE_CODE|default:"de" }}" class="no-js"> <!--<![endif]-->
+
+<!-- html head area for meta info -->
+<head>
+
+    <!-- meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!--[if IE]>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'><![endif]-->
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1">
+
+    <meta name="description" content="{% if self.search_description %}{{ self.search_description }}{% endif %}">
+    <meta name="keywords" content="{% block seo_keywords %}{% endblock %}">
+    <!--/ meta -->
+
+    <!-- Page Title -->
+    <title>
+        {% block title %}{% if self.seo_title %}{{ self.seo_title }}{% else %}{{ self.title }}{% endif %}{% endblock %}
+        {% block title_postfix %} | Django CCTV{% endblock %}</title>
+
+    <!--  Favicon  -->
+    <link rel="icon" type="image/png" href="https://teamz-webstudies.github.io/static/img/favicon.ico">
+
+    <!-- google fonts -->
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700' rel='stylesheet' type='text/css'>
+
+    <!-- google awesome fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+    <!-- bootstrap -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css"
+          integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+
+    <!-- bootswatch slate theme -->
+    <link rel="stylesheet" type="text/css"
+          href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.7/slate/bootstrap.min.css">
+
+    {# Override this block in individual templates in order to add stylesheets on a template by template basis #}
+    {% block extra_css %}{% endblock %}
+
+    {% compress css %}
+        {# Custom stylesheets #}
+        <!-- style.css -->
+        <link rel="stylesheet" type="text/css" href="{% static "cctv/css/style.css" %}">
+    {% endcompress %}
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+      <script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
+    <![endif]-->
+
+</head>
+<!-- html head area for meta info -->
+
+<!-- html visible content -->
+<body>
+
+{% wagtailuserbar %}
+
+{% block menu %}
+    {% get_site_root as site_root %}
+    {% top_menu parent=site_root calling_page=self %}
+{% endblock %}
+
+{% breadcrumbs %}
+
+<!-- Content -->
+<main>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</main>
+<!-- Content -->
+
+{% include "django_cctv/tags/footer.html" %}
+
+<!-- jQuery first -->
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js"
+        integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh"
+        crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js"
+        integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ"
+        crossorigin="anonymous"></script>
+
+{# Override this block in individual templates in order to add javascript on a template by template basis #}
+{% block extra_js %}{% endblock %}
+
+</body>
+<!-- html visible content -->
+
+</html>
+<!-- html document with german content -->

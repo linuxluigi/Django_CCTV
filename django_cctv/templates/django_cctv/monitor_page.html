@@ -1,0 +1,59 @@
+{% extends "django_cctv/base.html" %}
+
+{% load wagtailcore_tags %}
+
+{% block content %}
+
+    <div class="row">
+
+        <div class="col-sm-12" align="center">
+            {# video.js player #}
+            <video width=960 height=400 id=monitor-stream class="video-js vjs-default-skin" controls>
+                <source
+                        src="https://teamz-webstudies.github.io/static/video/720/teamZ_intro.mp4"
+                        type="application/x-mpegURL">
+            </video>
+        </div>
+
+        {% if self.body %}
+            <div class="col-sm-12">
+                <div class="body-content">
+                    {{ self.body|richtext }}
+                </div>
+            </div>
+        {% endif %}
+
+    </div>
+
+{% endblock %}
+
+{% block extra_css %}
+    <!-- videojs-contrib-hls css -->
+    <link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
+{% endblock %}
+
+{% block extra_js %}
+    <!-- Include video.js and videojs-contrib-hls -->
+    <script src="https://unpkg.com/video.js/dist/video.js"></script>
+    <script src="https://unpkg.com/videojs-flash/dist/videojs-flash.js"></script>
+    <script src="https://unpkg.com/videojs-contrib-hls/dist/videojs-contrib-hls.js"></script>
+
+    <!-- init video player -->
+    <script>
+        (function (window, videojs) {
+            var player = window.player = videojs('monitor-stream');
+
+            // hook up the video switcher
+            var loadUrl = document.getElementById('load-url');
+            var url = document.getElementById('url');
+            loadUrl.addEventListener('submit', function (event) {
+                event.preventDefault();
+                player.src({
+                    src: url.value,
+                    type: 'application/x-mpegURL'
+                });
+                return false;
+            });
+        }(window, window.videojs));
+    </script>
+{% endblock %}

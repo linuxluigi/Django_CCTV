@@ -59,5 +59,4 @@ fabric.properties
 local_settings.py
 /static
 *.db
-/static
 /media

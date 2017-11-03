@@ -2,5 +2,8 @@
 Django>=1.11,<1.12
 wagtail>=1.13,<1.14
 
+# Theme
+django_compressor>=2.2
+
 # hold on for deployment
 Mezzanine==4.2.3

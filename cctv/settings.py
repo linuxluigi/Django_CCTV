@@ -121,7 +121,7 @@ TEMPLATES = [
 ################
 
 INSTALLED_APPS = [
-    'home',
+    'django_cctv',
     'search',
 
     'wagtail.wagtailforms',

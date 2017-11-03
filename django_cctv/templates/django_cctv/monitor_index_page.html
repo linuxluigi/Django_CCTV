@@ -1,0 +1,10 @@
+{% extends "django_cctv/base.html" %}
+{% load wagtailcore_tags cctv_tags %}
+
+{% block content %}
+
+    {# Listing created with a tag - allows filtering by whether the page is live #}
+    {# See also the blog index or events index where the listing is created from a method defined in models.py #}
+    {% monitor_index_listing calling_page=self %}
+
+{% endblock %}
