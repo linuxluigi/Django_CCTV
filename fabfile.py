@@ -11,8 +11,6 @@ from glob import glob
 from importlib import import_module
 from posixpath import join
 
-from mezzanine.utils.conf import real_project_name
-
 from fabric.api import abort, env, cd, prefix, sudo as _sudo, run as _run, \
     hide, task, local
 from fabric.context_managers import settings as fab_settings
@@ -27,7 +25,7 @@ from fabric.decorators import hosts
 ################
 
 if not hasattr(env, "proj_app"):
-    env.proj_app = real_project_name("cctv")
+    env.proj_app = "cctv"
 
 conf = {}
 if sys.argv[0].split(os.sep)[-1] in ("fab", "fab-script.py"):
