@@ -450,6 +450,15 @@ def install():
     # nginx basic auth
     apt("apache2-utils")
 
+    # PyAV (libav)
+    apt("libav-tools libavcodec-extra ")
+
+    # screen for service
+    apt("screen ")
+
+    run("mkdir -p /home/%s/stream/logs" % env.user)
+    run("mkdir -p /home/%s/stream/pid" % env.user)
+
     # nginx rtmp
     apt("git gcc make libpcre3-dev libssl-dev")
     apt("build-essential libpcre3 libpcre3-dev libssl-dev")
@@ -466,6 +475,9 @@ def install():
     sudo("chmod +x /etc/init.d/nginx")
     sudo("update-rc.d nginx defaults")
     sudo("mkdir -p /srv/nginx/stream/hls")
+    sudo("mkdir -p /srv/nginx/stream/record")
+    # todo fix write rights
+    sudo("chmod 777 /srv/nginx/stream/record")
     sudo("mkdir -p /srv/nginx/keys")
     sudo("service nginx start")
 
@@ -557,6 +569,7 @@ def create():
             print_command(user_py.replace("'%s'" % pw, "'%s'" % shadowed))
 
     return True
+
 
 @task
 @log_call
