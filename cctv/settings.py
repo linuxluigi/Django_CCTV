@@ -1,5 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import os
+import getpass
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_DIR = os.path.dirname(PROJECT_DIR)
@@ -15,9 +16,9 @@ ALLOWED_HOSTS = ["*", ]
 # Internationalization
 # https://docs.djangoproject.com/en/1.11/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'de'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Berlin'
 
 USE_I18N = True
 
@@ -190,6 +191,13 @@ OPTIONAL_APPS = (
     PACKAGE_NAME_FILEBROWSER,
     PACKAGE_NAME_GRAPPELLI,
 )
+
+########
+# CCTV #
+########
+
+# get current unix user
+UNIX_CAM_USER = getpass.getuser()
 
 ##################
 # LOCAL SETTINGS #
