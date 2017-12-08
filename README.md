@@ -1,5 +1,7 @@
 # Django_CCTV
 
+[![Documentation Status](https://readthedocs.org/projects/django-cctv/badge/?version=latest)](http://django-cctv.readthedocs.io/en/latest/?badge=latest)
+
 Django-CCTV is a simple video surveillance software based on https://www.djangoproject.com, http://mezzanine.jupo.org,
 https://github.com/arut/nginx-rtmp-module/ & https://www.libav.org.
 
