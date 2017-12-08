@@ -39,3 +39,12 @@ SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 # Wagtail
 
 BASE_URL = "%(domain_main)s"
+
+# cctv extra
+UNIX_CAM_USER = "%(user)s"
+
+# Cloudflare
+CLOUDFLARE_ZONE = "%(cloudflare_zone)s"
+CLOUDFLARE_SUBDOMAIN = "%(cloudflare_subdomain)s"
+CLOUDFLARE_EMAIL = "%(cloudflare_email)s"
+CLOUDFLARE_TOKEN = "%(cloudflare_token)s"

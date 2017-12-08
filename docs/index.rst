@@ -15,8 +15,13 @@ Django CCTV's documentation!
 
    Local Settings <local_settings.rst>
    Deploy instructions <deploy.rst>
+   Tutorials <tutorial/index_tutorial.rst>
+   DynDns with Cloudflare <cloudflare.rst>
+   Development Enviroment <development-enviroment.rst>
+   LibAV Shell Examples <libav.rst>
    File Structure <file_stucture.rst>
    API documentation <apidoc.rst>
+   Cam Device List <device_list.rst>
    Help <help.rst>
    Changelog <changelog.rst>
    License <license.rst>

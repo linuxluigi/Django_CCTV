@@ -60,3 +60,5 @@ local_settings.py
 /static
 *.db
 /media
+/service
+!/service/human.txt

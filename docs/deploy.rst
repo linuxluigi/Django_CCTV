@@ -9,6 +9,7 @@ Tested Operation Systems
 ------------------------
 
 - Server Ubuntu 16.04 64Bit on https://www.digitalocean.com
+- Raspberry Pi 3 with Raspbian
 
 - Client Mac
 
@@ -36,6 +37,8 @@ Pip::
 
 Deploy
 ------
+
+Important: Do not install Django-CCTV as root!!!
 
 Download the source from git::
 

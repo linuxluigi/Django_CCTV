@@ -29,20 +29,28 @@ DATABASES = {
 ###################
 
 # Domains for public site
-# ALLOWED_HOSTS = [""]
+ALLOWED_HOSTS_PRODUCTION = ["example.com", ]
 
 # These settings are used by the default fabfile.py provided.
 # Check fabfile.py for defaults.
 
-# FABRIC = {
-#     "DEPLOY_TOOL": "rsync",  # Deploy with "git", "hg", or "rsync"
-#     "SSH_USER": "",  # VPS SSH username
-#     "HOSTS": [""],  # The IP address of your VPS
-#     "DOMAINS": ALLOWED_HOSTS,  # Edit domains in ALLOWED_HOSTS
-#     "REQUIREMENTS_PATH": "requirements.txt",  # Project's pip requirements
-#     "LOCALE": "en_US.UTF-8",  # Should end with ".UTF-8"
-#     "DB_PASS": "",  # Live database password
-#     "ADMIN_PASS": "",  # Live admin user password
-#     "SECRET_KEY": SECRET_KEY,
-#     "NEVERCACHE_KEY": NEVERCACHE_KEY,
-# }
+FABRIC = {
+    "DEPLOY_TOOL": "git",  # Deploy with "git", "hg", or "rsync"
+    "SSH_PASS": "yourpass",  # SSH password (consider key-based authentication)
+    "REPO_PATH": "git@github.com:linuxluigi/Django_CCTV.git",  # Github Repo
+    "SSH_USER": "pi",  # VPS SSH username
+    "HOSTS": ["django-cctv"],  # The IP address of your VPS
+    "DOMAINS": ALLOWED_HOSTS_PRODUCTION,  # Edit domains in ALLOWED_HOSTS
+    "REQUIREMENTS_PATH": "requirements.txt",  # Project's pip requirements
+    "LOCALE": "de_DE.UTF-8",  # Should end with ".UTF-8"
+    "DB_PASS": "h@cn8ExAvdFg!AFWyRULgOqdnXGS!@hcbEJumZSzoHL57Nrj7LwFaLtgo2UC",  # Live database password
+    "ADMIN_PASS": "3zX4sMLTbM@M5wxd4e39dCDp5cN!lBVOcFia$U8uJN9X4^r0comSY%1S^bigyo99!s&Yau",  # Live admin user password
+    "SECRET_KEY": SECRET_KEY,
+    "NEVERCACHE_KEY": NEVERCACHE_KEY,
+    "NGINX_AUTH_USER": "user",
+    "NGINX_AUTH_PASS": "w4$Y%nMtu!W&04XiWPOFY6OZxVchx5",
+    "CLOUDFLARE_ZONE": "example.com",
+    "CLOUDFLARE_SUBDOMAIN": "cctv",
+    "CLOUDFLARE_EMAIL": "name@server.com",
+    "CLOUDFLARE_TOKEN": "0000000000000000000000000000000000000",
+}

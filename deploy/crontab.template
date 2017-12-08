@@ -1,3 +1,4 @@
-# Poll Twitter every 5 minutes
-# Comment-out if you don't use Mezzanine's Twitter app
-*/5 * * * * %(user)s %(manage)s publish_scheduled_pages
+# delete old records
+*/5 * * * * %(user)s %(manage)s delete_old_videos /srv/nginx/stream/record
+*/30 * * * * %(user)s %(manage)s cloudflare_ddns
+*/30 * * * * %(user)s %(manage)s run_every_monitor
