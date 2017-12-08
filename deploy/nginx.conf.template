@@ -104,6 +104,7 @@ http {
         }
 
         location /stream {
+            # Basic Auth
             auth_basic "Restricted";                                #For Basic Auth
             auth_basic_user_file /usr/local/nginx/conf/.htpasswd;   #For Basic Auth
 
@@ -129,6 +130,7 @@ http {
                 video/mp2t ts;
             }
 
+            # root path
             root /srv/nginx/;
         }
 
@@ -150,11 +152,11 @@ rtmp {
             live on;
 
             # publish only from localhost
-            #allow publish 127.0.0.1;
-            allow publish all;
-            #deny publish all;
+            allow publish 127.0.0.1;
+            # allow publish all;
+            # deny publish all;
 
-            #allow play all;
+            # allow play all;
 
             # Turn on HLS
             hls on;
@@ -175,6 +177,26 @@ rtmp {
 
             # Change HLS key every 2 fragments
             hls_fragments_per_key 2;
+
+            # record stream
+            # https://github.com/arut/nginx-rtmp-module/wiki/Directives#record
+
+            record all;
+            record_path /srv/nginx/stream/record;
+
+            # lock current record
+            record_lock on;
+
+            # add date time suffix to record file
+            record_suffix -%%d-%%b-%%y-%%H-%%M.flv;
+
+            # interval to create a new record file
+            # record_interval 15m;
+            record_interval 30s;
+
+            # convert recorded file to mp4 format
+            # & remove record without motion
+            exec_record_done /usr/local/nginx/conf/after_record.sh -p $path -d $dirname -b $basename;
         }
 
     }

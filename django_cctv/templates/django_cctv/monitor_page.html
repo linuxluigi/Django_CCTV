@@ -25,6 +25,37 @@
 
     </div>
 
+    <hr>
+
+    <div class="row">
+        <table class="table table-striped">
+            <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Filename</th>
+                <th scope="col">Beginn</th>
+                <th scope="col">File Size</th>
+                <th scope="col">Download</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for record in self.get_video_records %}
+            <tr>
+                <th scope="row">{{ forloop.counter }}</th>
+                <td>{{ record.filename }}</td>
+                <td>{{ record.create_date_time }}</td>
+                <td>{{ record.file_size }}</td>
+                <td>
+                    <a href="/stream/record/{{ record.filename }}" class="btn btn-primary">
+                      <span class="glyphicon glyphicon-download"></span> Download
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
 {% endblock %}
 
 {% block extra_css %}

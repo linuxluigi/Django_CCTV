@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# run this script after record done by nginx rtmp stream
+
+# example usage
+# ./after_record.sh -p /path/to/file -d /output/directory -b newFileName
+
+# read args
+while getopts u:d:p:f: option
+do
+ case "${option}"
+ in
+ p) PATH=${OPTARG};;
+ d) DIRNAME=${OPTARG};;
+ b) BASENAME=${OPTARG};;
+ esac
+done
+
+# convert video to mp4
+avconv -i $PATH -acodec copy -vcodec copy -y $DIRNAME/$BASENAME.mp4
+
+# rm old video
+rm $PATH
+
+# remove video without motion
+%(user)s %(manage)s motion_detector $PATH --delete-empty-video

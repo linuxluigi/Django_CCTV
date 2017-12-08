@@ -5,5 +5,12 @@ wagtail>=1.13,<1.14
 # Theme
 django_compressor>=2.2
 
-# hold on for deployment
-Mezzanine==4.2.3
+# openCV
+# opencv-python>=3.3.0.10
+# numpy>=1.13.3,<1.14
+
+# cloudflare
+cloudflare>=1.8.1,<1.9
+
+# hold on for media file bug
+Mezzanine>=4.2.3,<4.3

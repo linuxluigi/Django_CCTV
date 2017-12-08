@@ -70,6 +70,11 @@ env.nevercache_key = conf.get("NEVERCACHE_KEY", "")
 env.nginx_auth_user = conf.get("NGINX_AUTH_USER", "")
 env.nginx_auth_pass = conf.get("NGINX_AUTH_PASS", "")
 
+env.cloudflare_zone = conf.get("CLOUDFLARE_ZONE", "")
+env.cloudflare_subdomain = conf.get("CLOUDFLARE_SUBDOMAIN", "")
+env.cloudflare_email = conf.get("CLOUDFLARE_EMAIL", "")
+env.cloudflare_token = conf.get("CLOUDFLARE_TOKEN", "")
+
 if not env.secret_key:
     print("Aborting, no SECRET_KEY setting defined.")
     exit()
@@ -112,6 +117,11 @@ templates = {
     "settings": {
         "local_path": "deploy/local_settings.py.template",
         "remote_path": "%(proj_path)s/%(proj_app)s/local_settings.py",
+    },
+    "afterrecord": {
+        "local_path": "deploy/after_record.sh.template",
+        "remote_path": "/usr/local/nginx/conf/after_record.sh",
+        "mode": "755",
     },
 }
 
@@ -450,6 +460,37 @@ def install():
 
     # PyAV (libav)
     apt("libav-tools libavcodec-extra ")
+
+    # OpenCV
+    # Source: https://www.pyimagesearch.com/2017/09/04/raspbian-stretch-install-opencv-3-python-on-your-raspberry-pi/
+    apt("build-essential cmake pkg-config ")
+    apt("libjpeg-dev libtiff5-dev libjasper-dev libpng12-dev ")
+    apt("libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev ")
+    apt("libgtk2.0-dev libgtk-3-dev ")
+    apt("libatlas-base-dev gfortran ")
+    apt("python3-pip python3-dev ")
+    run("pip3 install --upgrade --force-reinstall numpy")
+
+    opencv_version = "3.3.1"
+    run("rm -r opencv*")
+    run("wget https://github.com/Itseez/opencv/archive/%s.zip -O opencv.zip" % opencv_version)
+    run("unzip opencv.zip")
+    run("wget https://github.com/Itseez/opencv_contrib/archive/%s.zip -O opencv_contrib.zip" % opencv_version)
+    run("unzip opencv_contrib.zip")
+
+    run("mkdir opencv-%s/build" % opencv_version)
+
+    with cd("opencv-%s/build" % opencv_version):
+        run("cmake -D CMAKE_BUILD_TYPE=RELEASE \
+            -D CMAKE_INSTALL_PREFIX=/usr/local \
+            -D INSTALL_PYTHON_EXAMPLES=ON \
+            -D OPENCV_EXTRA_MODULES_PATH=~/opencv_contrib-%s/modules \
+            -D BUILD_EXAMPLES=ON .." % opencv_version)
+        run("make -j4")
+        sudo("make install")
+        sudo("ldconfig")
+        sudo("cp /usr/local/lib/python3.5/dist-packages/cv2.cpython-35m-arm-linux-gnueabihf.so " +
+             "/usr/local/lib/python3.5/dist-packages/cv2.so")
 
     # screen for service
     apt("screen ")

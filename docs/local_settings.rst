@@ -1,3 +1,5 @@
+.. _local_settings:
+
 ==============
 Local Settings
 ==============
