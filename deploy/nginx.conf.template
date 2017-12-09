@@ -156,7 +156,7 @@ rtmp {
             # allow publish all;
             # deny publish all;
 
-            # allow play all;
+            allow play all;
 
             # Turn on HLS
             hls on;
