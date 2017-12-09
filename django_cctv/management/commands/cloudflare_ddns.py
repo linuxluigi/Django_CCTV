@@ -2,18 +2,16 @@ from django.core.management.base import BaseCommand
 import socket
 
 import CloudFlare
+from requests import get
 
 from django.conf import settings
 
 
 def get_external_ip_address():
     """
-    Get current external ip address from open dns server
+    Get current external ip address from ipify.org
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("208.67.222.222", 80))  # open dns server
-    ip_address = s.getsockname()[0]
-    s.close()
+    ip_address = get('https://api.ipify.org').text
 
     return ip_address
 
@@ -23,8 +21,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # cloudflare login + dns domain name
-        target_sub_domain = getattr(settings, "CLOUDFLARE_ZONE", None)
-        target_zone = getattr(settings, "CLOUDFLARE_SUBDOMAIN", None)
+        target_sub_domain = getattr(settings, "CLOUDFLARE_SUBDOMAIN", None)
+        target_zone = getattr(settings, "CLOUDFLARE_ZONE", None)
         cf_email = getattr(settings, "CLOUDFLARE_EMAIL", None)
         cf_token = getattr(settings, "CLOUDFLARE_TOKEN", None)
 
@@ -51,15 +49,16 @@ class Command(BaseCommand):
                 # loop every dns_records & search for target domain name
                 for dns_record in dns_records:
                     if dns_record['name'] == "%s.%s" % (target_sub_domain, target_zone):
-                        dns_record['content'] = external_ip_address
-
                         # delete old entry
                         cf.zones.dns_records.delete(zone['id'], dns_record['id'])
 
-                        # generate new entry
-                        cf.zones.dns_records.post(zone['id'], data=dns_record)
-
-                        print("ip updated to %s" % external_ip_address)
-
                         break
+
+                # generate new entry
+                new_dns_record = {'name': target_sub_domain, 'type': 'A', 'content': external_ip_address,
+                                  'proxied': True}
+                cf.zones.dns_records.post(zone['id'], data=new_dns_record)
+
+                print("ip updated to %s" % external_ip_address)
+
                 break
