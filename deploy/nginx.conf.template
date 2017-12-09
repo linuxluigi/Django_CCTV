@@ -191,8 +191,7 @@ rtmp {
             record_suffix -%%d-%%b-%%y-%%H-%%M.flv;
 
             # interval to create a new record file
-            # record_interval 15m;
-            record_interval 30s;
+            record_interval 15m;
 
             # convert recorded file to mp4 format
             # & remove record without motion
