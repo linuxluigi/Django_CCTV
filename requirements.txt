@@ -13,4 +13,4 @@ django_compressor>=2.2
 cloudflare==2.3.0
 
 # hold on for media file bug
-Mezzanine>=4.2.3,<4.3
+Mezzanine==4.3.1
