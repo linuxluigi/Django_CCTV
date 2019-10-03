@@ -1,5 +1,5 @@
 # core
-Django>=1.11,<1.12
+Django==2.2.6
 wagtail>=1.13,<1.14
 
 # Theme
