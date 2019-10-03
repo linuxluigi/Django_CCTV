@@ -1,6 +1,6 @@
 # core
-Django>=1.11,<1.12
-wagtail>=1.13,<1.14
+Django==2.2.6
+wagtail==2.6.2
 
 # Theme
 django_compressor>=2.2
@@ -10,7 +10,7 @@ django_compressor>=2.2
 # numpy>=1.13.3,<1.14
 
 # cloudflare
-cloudflare>=1.8.1,<1.9
+cloudflare==2.3.0
 
 # hold on for media file bug
-Mezzanine>=4.2.3,<4.3
+Mezzanine==4.3.1
